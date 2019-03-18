@@ -244,7 +244,6 @@ var autoComplete = (function(){
       };
 
       addEvent(that, 'focus', that.listenReopen);
-
     }
 
     // public destroy method
@@ -279,8 +278,9 @@ var autoComplete = (function(){
       return source
     }
 
-    this.preRender = function () {
-      that.sc.innerHTML = o.renderItems([])
+    this.preRender = function (items = []) {
+      that.items = items
+      that.sc.innerHTML = o.renderItems(items)
       that.updateSC(true)
     };
 
