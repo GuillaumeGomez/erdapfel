@@ -13,14 +13,14 @@ import {vehiculeMatching} from '../../adapters/direction_api'
 
 
 export default class DirectionPanel {
-  constructor() {
+  constructor(roadPanel) {
     this.panel = new Panel(this, directionTemplate)
     this.vehicles = {DRIVING : 'driving', WALKING : 'walking', CYCLING : 'cycling'}
     this.active = false
     this.origin = null
     this.destination = null
     this.vehicle = this.vehicles.DRIVING
-    this.roadMapPanel = new RoadMapPanel(() => this.handleOpen(), () => this.handleClose())
+    this.roadMapPanel = new RoadMapPanel(() => this.handleOpen(), () => this.handleClose(), roadPanel)
     this.routes = null
     PanelManager.register(this)
     UrlState.registerResource(this, 'routes')
