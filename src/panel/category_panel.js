@@ -1,86 +1,90 @@
-import Panel from "../libs/panel";
-import CategoryPanelView from "../views/category_panel.dot"
-import MinimalHourPanel from "./poi_bloc/opening_minimal";
-import UrlState from "../proxies/url_state";
-import {paramTypes} from "../proxies/url_shard";
-import IdunnPoi from "../adapters/poi/idunn_poi";
+import Panel from '../libs/panel';
+import CategoryPanelView from '../views/category_panel.dot';
+import MinimalHourPanel from './poi_bloc/opening_minimal';
+import UrlState from '../proxies/url_state';
+import {paramTypes} from '../proxies/url_shard';
+import IdunnPoi from '../adapters/poi/idunn_poi';
 import SearchInput from '../ui_components/search_input';
 import Telemetry from '../libs/telemetry';
-import layouts from "./layouts.js";
-import debounce from '../libs/debounce'
-const poiSubClass = require('../mapbox/poi_subclass')
+import layouts from './layouts.js';
+import debounce from '../libs/debounce';
+import poiSubClass from '../mapbox/poi_subclass';
 
 export default class CategoryPanel {
   constructor() {
-    this.minimalHourPanel = new MinimalHourPanel()
-    this.panel = new Panel(this, CategoryPanelView)
+    this.minimalHourPanel = new MinimalHourPanel();
+    this.panel = new Panel(this, CategoryPanelView);
 
-    this.pois = []
-    this.categoryName = ''
-    this.active = false
-    this.poiSubClass = poiSubClass
-    this.PoiMarkers = []
-    this.loading = false
+    this.pois = [];
+    this.categoryName = '';
+    this.active = false;
+    this.poiSubClass = poiSubClass;
+    this.PoiMarkers = [];
+    this.loading = false;
 
-    UrlState.registerUrlShard(this, 'places', paramTypes.RESOURCE)
-    PanelManager.register(this)
+    UrlState.registerUrlShard(this, 'places', paramTypes.RESOURCE);
+    PanelManager.register(this);
 
     listen('map_moveend', debounce( function() {
-      if(this.active) this.search()
-    }, 300, this))
+      if (this.active) {
+        this.search();
+      }
+    }, 300, this));
 
-    listen('click_category_poi', (poi)=> {
-      if (poi.meta && poi.meta.source) Telemetry.add("open", "poi", poi.meta.source)
+    listen('click_category_poi', (poi) => {
+      if (poi.meta && poi.meta.source) {
+        Telemetry.add('open', 'poi', poi.meta.source);
+      }
       this.selectPoi(poi);
     });
 
   }
 
-  store () {
-    if(this.active && this.categoryName && this.categoryName !== '') {
-      return `type=${this.categoryName}`
+  store() {
+    if (this.active && this.categoryName && this.categoryName !== '') {
+      return `type=${this.categoryName}`;
     }
-    return ''
+    return '';
   }
 
   restore(urlShard) {
     window.execOnMapLoaded(() => {
-      this.categoryName = urlShard.match(/type=(.*)/)[1]
-      this.search()
-      this.open()
-    })
+      this.categoryName = urlShard.match(/type=(.*)/)[1];
+      this.search();
+      this.open();
+    });
   }
 
   async search() {
-    this.loading = true
-    let bbox = window.map.bbox()
-    let urlBBox = [bbox.getWest(),bbox.getSouth(),bbox.getEast(),bbox.getNorth()]
+    this.loading = true;
+    let bbox = window.map.bbox();
+    let urlBBox = [bbox.getWest(), bbox.getSouth(), bbox.getEast(), bbox.getNorth()]
       .map((cardinal) => cardinal.toFixed(7))
-      .join(',')
+      .join(',');
 
-    this.pois = await IdunnPoi.poiCategoryLoad(urlBBox, 50, this.categoryName, this)
-    this.loading = false
+    this.pois = await IdunnPoi.poiCategoryLoad(urlBBox, 50, this.categoryName, this);
+    this.loading = false;
 
-    this.panel.update()
-    let container = document.querySelector(".category__panel__scroll");
-    if(container){
-        container.scrollTop = 0;
+    this.panel.update();
+    let container = document.querySelector('.category__panel__scroll');
+    if (container){
+      container.scrollTop = 0;
     }
 
     this.addCategoryMarkers();
-    fire("save_location");
+    fire('save_location');
 
-    document.querySelector(".service_panel").classList.remove("service_panel--active")
+    document.querySelector('.service_panel').classList.remove('service_panel--active');
   }
 
-  async open (options = {}) {
-    if(options.category) {
-      const { name, label } = options.category
-      this.categoryName = name
-      SearchInput.setInputValue(label.charAt(0).toUpperCase() + label.slice(1))
+  async open(options = {}) {
+    if (options.category) {
+      const { name, label } = options.category;
+      this.categoryName = name;
+      SearchInput.setInputValue(label.charAt(0).toUpperCase() + label.slice(1));
     }
-    this.active = true
-    UrlState.pushUrl()
+    this.active = true;
+    UrlState.pushUrl();
 
     if (window.map.mb.isMoving()){
       /*
@@ -88,80 +92,76 @@ export default class CategoryPanel {
         is already moving, to avoid flickering.
         The search will be triggered on moveend.
       */
-      return
+      return;
     }
 
-    this.search()
-    await this.panel.update()
+    this.search();
+    await this.panel.update();
     // Apply correct zoom when opening a category
-    let currentZoom = window.map.mb.getZoom()
+    let currentZoom = window.map.mb.getZoom();
 
     // Zoom < 5: focus on Paris
-    if(currentZoom < 5){
+    if (currentZoom < 5){
       window.map.mb.flyTo({center: [2.35, 48.85], zoom: 12});
-    }
-
-    // Zoom < 12: zoom up to zoom 12
-    else if(currentZoom < 12){
+    } else if (currentZoom < 12){ // Zoom < 12: zoom up to zoom 12
       window.map.mb.flyTo({zoom: 12});
-    }
-
-    // Zoom > 16: dezoom to zoom 16
-    else if(currentZoom > 16){
+    } else if (currentZoom > 16){ // Zoom > 16: dezoom to zoom 16
       window.map.mb.flyTo({zoom: 16});
     }
   }
 
-  close (toggleMarkers = true) {
-    SearchInput.unMinify()
-    document.querySelector('.top_bar').classList.remove('top_bar--category-open')
-    this.active = false
-    this.panel.update()
-    UrlState.pushUrl()
-    if(toggleMarkers){
-      this.removeCategoryMarkers()
+  close(toggleMarkers = true) {
+    SearchInput.unMinify();
+    document.querySelector('.top_bar').classList.remove('top_bar--category-open');
+    this.active = false;
+    this.panel.update();
+    UrlState.pushUrl();
+    if (toggleMarkers){
+      this.removeCategoryMarkers();
     }
   }
 
   showPhoneNumber(options){
-    var poi = options.poi
-    var i = options.i
-    if (poi.meta && poi.meta.source) Telemetry.add("phone", "poi", poi.meta.source)
-    document.querySelector("#category__panel__phone_hidden_" + i).style.display = "none";
-    document.querySelector("#category__panel__phone_revealed_" + i).style.display = "inline";
+    var poi = options.poi;
+    var i = options.i;
+    if (poi.meta && poi.meta.source) {
+      Telemetry.add('phone', 'poi', poi.meta.source);
+    }
+    document.querySelector('#category__panel__phone_hidden_' + i).style.display = 'none';
+    document.querySelector('#category__panel__phone_revealed_' + i).style.display = 'inline';
   }
 
   closeAction() {
-    SearchInput.setInputValue('')
-    PanelManager.resetLayout()
+    SearchInput.setInputValue('');
+    PanelManager.resetLayout();
   }
 
   addCategoryMarkers(){
-    fire("add_category_markers", this.pois);
+    fire('add_category_markers', this.pois);
   }
 
   removeCategoryMarkers(){
-    fire("remove_category_markers", this.pois);
+    fire('remove_category_markers', this.pois);
   }
 
   selectPoi(poi){
-    fire('fit_map', poi, layouts.LIST)
-    this.close(false)
-    PanelManager.loadPoiById(poi.id, {isFromList : true, list: this})
-    this.highlightPoiMarker(poi)
+    fire('fit_map', poi, layouts.LIST);
+    this.close(false);
+    PanelManager.loadPoiById(poi.id, {isFromList: true, list: this});
+    this.highlightPoiMarker(poi);
   }
 
   highlightPoiMarker(poi){
     let marker = document.getElementById(poi.marker_id);
-    if(marker) {
-      marker.classList.add("active")
+    if (marker) {
+      marker.classList.add('active');
     }
   }
 
   unhighlightPoiMarker(poi){
     let marker = document.getElementById(poi.marker_id);
-    if(marker) {
-      marker.classList.remove("active")
+    if (marker) {
+      marker.classList.remove('active');
     }
   }
 }
